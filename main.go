@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/patrickmn/go-cache"
 )
 
 type Coin struct {
@@ -16,21 +18,39 @@ type Coin struct {
 	Name   string
 }
 
-type Supported_Coin struct {
-	Symbol string
-}
+var coinlist []Coin
+var supported_coinlist []string
+var c *cache.Cache
 
 func main() {
+	c = cache.New(5*time.Minute, 10*time.Minute)
+	c.Set("coinlist", getCoins(), cache.DefaultExpiration)
+	c.Set("supported_coinlist", getSupported(), cache.DefaultExpiration)
+
+	if coinlistI, ok := c.Get("coinlist"); ok {
+		coinlist = coinlistI.([]Coin)
+	}
+
+	if supported_coinlistI, ok := c.Get("supported_coinlist"); ok {
+		supported_coinlist = supported_coinlistI.([]string)
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Get("/convert/{base}-{quote}", convert)
 
 	http.ListenAndServe(":3000", r)
+	fmt.Println("Listening on port 3000")
 }
 
 func convert(w http.ResponseWriter, r *http.Request) {
-	coinlist := getCoins()
-	supported_coinlist := getSupported()
+	if _, ok := c.Get("coinlist"); !ok {
+		c.Set("coinlist", getCoins(), cache.DefaultExpiration)
+	}
+
+	if _, ok := c.Get("supported_coinlist"); !ok {
+		c.Set("supported_coinlist", getSupported(), cache.DefaultExpiration)
+	}
 
 	base := chi.URLParam(r, "base")
 	quote := chi.URLParam(r, "quote")
@@ -41,8 +61,9 @@ func convert(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		if i == len(coinlist) {
-			w.Write([]byte(fmt.Sprint("I don't know about that cryptocurrency")))
+		if i == len(coinlist)-1 {
+			http.Error(w, "Unknown cryptocurrency", http.StatusBadRequest)
+			return
 		}
 	}
 
@@ -51,58 +72,67 @@ func convert(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		if i == len(supported_coinlist) {
-			w.Write([]byte(fmt.Sprint("Please choose only supported coins as second parameter: ", supported_coinlist)))
+		if i == len(supported_coinlist)-1 {
+			http.Error(w, fmt.Sprint("Unsupported second cryptocurrency, supported: ", supported_coinlist), http.StatusBadRequest)
 			return
 		}
 	}
 
 	price := getPrice(base, quote)
-	w.Write([]byte(fmt.Sprint("One " + base + " is " + fmt.Sprint(price) + " " + quote)))
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(price)
 }
 
 func getCoins() []Coin {
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "https://api.coingecko.com/api/v3/coins/list", nil)
+	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/coins/list", nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer resp.Body.Close()
 
-	var coinlist []Coin
-	json.NewDecoder(resp.Body).Decode(&coinlist)
+	var tmpCoinlist []Coin
+	json.NewDecoder(resp.Body).Decode(&tmpCoinlist)
 
-	return coinlist
+	return tmpCoinlist
 }
 
 func getSupported() []string {
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "https://api.coingecko.com/api/v3/simple/supported_vs_currencies", nil)
+	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/simple/supported_vs_currencies", nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer resp.Body.Close()
 
-	var supported_coinlist []string
-	json.NewDecoder(resp.Body).Decode(&supported_coinlist)
+	var tmpSupportedCoinlist []string
+	json.NewDecoder(resp.Body).Decode(&tmpSupportedCoinlist)
 
-	return supported_coinlist
+	return tmpSupportedCoinlist
 }
 
-func getPrice(base, quote string) float64 {
+func getPrice(base, quote string) json.RawMessage {
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=%v", base, quote), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=%v", base, quote), nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer resp.Body.Close()
 
-	var price map[string]map[string]float64
-	json.NewDecoder(resp.Body).Decode(&price)
-	fmt.Println(price)
+	var jsonPrice json.RawMessage
+	json.NewDecoder(resp.Body).Decode(&jsonPrice)
 
-	return price[base][quote]
+	return jsonPrice
 }
