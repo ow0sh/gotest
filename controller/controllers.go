@@ -75,7 +75,7 @@ func Contains(s interface{}, str string) bool {
 
 		return false
 	case map[string]string:
-		for k, _ := range value {
+		for k := range value {
 			if k == str {
 				return true
 			}
