@@ -46,8 +46,7 @@ func GetSupported(client *http.Client) []string {
 	return tmpSupportedCoinlist
 }
 
-func GetPrice(base, quote string) json.RawMessage {
-	client := &http.Client{}
+func GetPrice(base, quote string, client *http.Client) json.RawMessage {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=%v", base, quote), nil)
 	if err != nil {
 		fmt.Println(err)

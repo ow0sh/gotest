@@ -28,13 +28,13 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Route("/rate/{base}-{quote}", func(r chi.Router) {
 		r.Use(M.Caching(c))
-		r.Get("/", convert(c, coinlist, supported_coinlist))
+		r.Get("/", convert(c, coinlist, supported_coinlist, client))
 	})
 
 	http.ListenAndServe(config.Config.App.Port, r)
 }
 
-func convert(c *cache.Cache, coinlist map[string]string, supported_coinlist []string) http.HandlerFunc {
+func convert(c *cache.Cache, coinlist map[string]string, supported_coinlist []string, client *http.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		base := chi.URLParam(r, "base")
 		quote := chi.URLParam(r, "quote")
@@ -48,7 +48,7 @@ func convert(c *cache.Cache, coinlist map[string]string, supported_coinlist []st
 			return
 		}
 
-		price := C.GetPrice(coinlist[base], quote)
+		price := C.GetPrice(coinlist[base], quote, client)
 		c.Set(fmt.Sprintf(base+"-"+quote), []byte(price), cache.DefaultExpiration)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(price)
