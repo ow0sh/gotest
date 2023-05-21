@@ -1,0 +1,9 @@
+{
+  "app": {
+    "PORT": ":3000"
+  },
+  "cache": {
+    "defaultExpiration": 5,
+    "cleanupInterval": 10
+  }
+}
