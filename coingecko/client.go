@@ -1,40 +1,56 @@
-package controller
+package coingecko
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"net/http"
-	"server/config"
 )
 
-func GetCoins(client *http.Client) map[string]string {
+type Client struct {
+	httpCli *http.Client
+}
+
+type Coin struct {
+	Id     string `json:"id"`
+	Symbol string `json:"symbol"`
+	Name   string `json:"name"`
+}
+
+func NewClient(cli *http.Client) *Client {
+	return &Client{httpCli: cli}
+}
+
+func (cli *Client) GetCoins() (map[string]string, error) {
 	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/coins/list", nil)
 	if err != nil {
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "failed to create request")
 	}
-	resp, err := client.Do(req)
+	resp, err := cli.httpCli.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "failed to do request")
 	}
 	defer resp.Body.Close()
 
-	var tmpCoinlist []config.Coin
-	json.NewDecoder(resp.Body).Decode(&tmpCoinlist)
+	var tmpCoinlist []Coin
+	if err = json.NewDecoder(resp.Body).Decode(&tmpCoinlist); err != nil {
+		return nil, errors.Wrap(err, "failed to decode response")
+	}
 
 	result := make(map[string]string)
 	for _, v := range tmpCoinlist {
 		result[v.Symbol] = v.Name
 	}
 
-	return result
+	return result, nil
 }
 
-func GetSupported(client *http.Client) []string {
+func (cli *Client) GetSupported() []string {
 	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/simple/supported_vs_currencies", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
-	resp, err := client.Do(req)
+	resp, err := cli.httpCli.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -46,12 +62,12 @@ func GetSupported(client *http.Client) []string {
 	return tmpSupportedCoinlist
 }
 
-func GetPrice(base, quote string, client *http.Client) json.RawMessage {
+func (cli *Client) GetPrice(base, quote string) json.RawMessage {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=%v", base, quote), nil)
 	if err != nil {
 		fmt.Println(err)
 	}
-	resp, err := client.Do(req)
+	resp, err := cli.httpCli.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -61,26 +77,4 @@ func GetPrice(base, quote string, client *http.Client) json.RawMessage {
 	json.NewDecoder(resp.Body).Decode(&jsonPrice)
 
 	return jsonPrice
-}
-
-func Contains(s interface{}, str string) bool {
-	switch value := s.(type) {
-	case []string:
-		for _, v := range value {
-			if v == str {
-				return true
-			}
-		}
-
-		return false
-	case map[string]string:
-		for k := range value {
-			if k == str {
-				return true
-			}
-		}
-
-		return false
-	}
-	return false
 }

@@ -6,12 +6,6 @@ import (
 	"io/ioutil"
 )
 
-type Coin struct {
-	Id     string
-	Symbol string
-	Name   string
-}
-
 type TypeAppConfig struct {
 	Port string `json:"PORT"`
 }
