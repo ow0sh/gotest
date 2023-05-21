@@ -34,9 +34,7 @@ func main() {
 		time.Duration(config.Config.Cache.CleanupInterval)*time.Minute)
 	r := chi.NewRouter()
 
-	middleware.DefaultLogger =
-
-		r.Use(middleware.Logger)
+	r.Use(middleware.Logger)
 	r.Route("/rate", func(r chi.Router) {
 		r.Use(middlint.Caching(c))
 		r.Get("/", newHandler(coinCli, bases, mapToSet(quotes)).convert)
