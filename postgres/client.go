@@ -41,10 +41,10 @@ func (conn *PSQLConn) CloseConn() error {
 	return nil
 }
 
-func (conn *PSQLConn) InsertInfo(base map[string]string, quote map[string]struct{}) error {
+func (conn *PSQLConn) InsertInfo(bases map[string]string, quotes map[string]struct{}) error {
 	id := 0
-	for k := range base {
-		for j := range quote {
+	for k := range bases {
+		for j := range quotes {
 			insertStr := `INSERT INTO prices VALUES ($1, $2, $3, $4)`
 			_, err := conn.conn.Exec(context.Background(), insertStr, id, k, j, 0)
 			if err != nil {
