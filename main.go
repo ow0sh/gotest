@@ -1,56 +1,59 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/ow0sh/gotest/coingecko"
+	"github.com/ow0sh/gotest/postgres"
+
+	"github.com/pkg/errors"
+
 	"github.com/patrickmn/go-cache"
 
-	"server/config"
-	C "server/controller"
-	M "server/middleware"
+	"github.com/ow0sh/gotest/config"
+	middlint "github.com/ow0sh/gotest/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	config.InitConfig()
+	log := logrus.New()
 
-	client := &http.Client{}
-	coinlist := C.GetCoins(client)               // map[symbol]name
-	supported_coinlist := C.GetSupported(client) // []string
+	config := config.InitConfig(log)
 
-	c := cache.New(time.Duration(config.Config.Cache.DefaultExpiration)*time.Minute,
-		time.Duration(config.Config.Cache.CleanupInterval)*time.Minute)
+	httpCli := &http.Client{}
+	coinCli := coingecko.NewClient(httpCli)
+
+	PSQLconn, _ := postgres.NewConn(config.PSQL)
+	defer PSQLconn.CloseConn()
+
+	bases, err := coinCli.GetCoins()
+	if err != nil {
+		panic(err)
+	}
+	quotes, err := coinCli.GetSupported()
+	if err != nil {
+		panic(err)
+	}
+
+	handler := NewHandler(coinCli, bases, MapToSet(quotes))
+
+	c := cache.New(time.Duration(config.Cache.DefaultExpiration)*time.Minute,
+		time.Duration(config.Cache.CleanupInterval)*time.Minute)
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
+	r.Use(middlint.Logger(log))
 	r.Route("/rate/{base}-{quote}", func(r chi.Router) {
-		r.Use(M.Caching(c))
-		r.Get("/", convert(c, coinlist, supported_coinlist, client))
+		r.Use(middlint.Caching(c))
+		r.Get("/", handler.convert)
 	})
 
-	http.ListenAndServe(config.Config.App.Port, r)
-}
-
-func convert(c *cache.Cache, coinlist map[string]string, supported_coinlist []string, client *http.Client) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		base := chi.URLParam(r, "base")
-		quote := chi.URLParam(r, "quote")
-
-		if C.Contains(supported_coinlist, quote) == false {
-			http.Error(w, fmt.Sprint("Unsupported second cryptocurrency, supported: ", supported_coinlist), http.StatusBadRequest)
-			return
+	PSQLconn.InsertInfo(bases, MapToSet(quotes))
+	log.Info("Server started on port: " + config.App.Port)
+	if err := http.ListenAndServe(config.App.Port, r); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			panic(err)
 		}
-		if C.Contains(coinlist, base) == false {
-			http.Error(w, "Unknown cryptocurrency", http.StatusBadRequest)
-			return
-		}
-
-		price := C.GetPrice(coinlist[base], quote, client)
-		c.Set(fmt.Sprintf(base+"-"+quote), []byte(price), cache.DefaultExpiration)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(price)
 	}
 }
