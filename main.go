@@ -1,46 +1,57 @@
 package main
 
-import "C"
 import (
-	"github.com/go-chi/chi/v5"
-	"github.com/ow0sh/gotest/coingecko"
-	"github.com/pkg/errors"
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/ow0sh/gotest/coingecko"
+	"github.com/ow0sh/gotest/postgres"
+
+	"github.com/pkg/errors"
+
 	"github.com/patrickmn/go-cache"
 
 	"github.com/ow0sh/gotest/config"
 	middlint "github.com/ow0sh/gotest/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	// TODO: return config, don't use global variables
+	log := logrus.New()
 
-	config.InitConfig()
+	config := config.InitConfig(log)
 
-	// TODO: add logger https://github.com/sirupsen/logrus
 	httpCli := &http.Client{}
 	coinCli := coingecko.NewClient(httpCli)
+
+	PSQLconn, _ := postgres.NewConn(config.PSQL)
+	defer PSQLconn.CloseConn()
+
 	bases, err := coinCli.GetCoins()
 	if err != nil {
 		panic(err)
 	}
-	// TODO: add error processing
-	quotes := coinCli.GetSupported()
+	quotes, err := coinCli.GetSupported()
+	if err != nil {
+		panic(err)
+	}
 
-	c := cache.New(time.Duration(config.Config.Cache.DefaultExpiration)*time.Minute,
-		time.Duration(config.Config.Cache.CleanupInterval)*time.Minute)
+	handler := NewHandler(coinCli, bases, MapToSet(quotes))
+
+	c := cache.New(time.Duration(config.Cache.DefaultExpiration)*time.Minute,
+		time.Duration(config.Cache.CleanupInterval)*time.Minute)
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
-	r.Route("/rate", func(r chi.Router) {
+	r.Use(middlint.Logger(log))
+	r.Route("/rate/{base}-{quote}", func(r chi.Router) {
 		r.Use(middlint.Caching(c))
-		r.Get("/", newHandler(coinCli, bases, mapToSet(quotes)).convert)
+		r.Get("/", handler.convert)
 	})
 
-	if err := http.ListenAndServe(config.Config.App.Port, r); err != nil {
+	PSQLconn.InsertInfo(bases, MapToSet(quotes))
+	log.Info("Server started on port: " + config.App.Port)
+	if err := http.ListenAndServe(config.App.Port, r); err != nil {
 		if !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}

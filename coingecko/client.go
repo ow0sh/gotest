@@ -3,8 +3,9 @@ package coingecko
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"net/http"
+
+	"github.com/pkg/errors"
 )
 
 type Client struct {
@@ -45,36 +46,40 @@ func (cli *Client) GetCoins() (map[string]string, error) {
 	return result, nil
 }
 
-func (cli *Client) GetSupported() []string {
+func (cli *Client) GetSupported() ([]string, error) {
 	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/simple/supported_vs_currencies", nil)
 	if err != nil {
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "failed to create request")
 	}
 	resp, err := cli.httpCli.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "failed to do request")
 	}
 	defer resp.Body.Close()
 
-	var tmpSupportedCoinlist []string
-	json.NewDecoder(resp.Body).Decode(&tmpSupportedCoinlist)
+	var result []string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, errors.Wrap(err, "failed to decode responce")
+	}
 
-	return tmpSupportedCoinlist
+	return result, nil
 }
 
-func (cli *Client) GetPrice(base, quote string) json.RawMessage {
+func (cli *Client) GetPrice(base, quote string) (json.RawMessage, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=%v", base, quote), nil)
 	if err != nil {
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "failed to create request")
 	}
 	resp, err := cli.httpCli.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		return nil, errors.Wrap(err, "failed to do request")
 	}
 	defer resp.Body.Close()
 
 	var jsonPrice json.RawMessage
-	json.NewDecoder(resp.Body).Decode(&jsonPrice)
+	if err := json.NewDecoder(resp.Body).Decode(&jsonPrice); err != nil {
+		return nil, errors.Wrap(err, "failed to decode responce")
+	}
 
-	return jsonPrice
+	return jsonPrice, nil
 }

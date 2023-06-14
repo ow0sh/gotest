@@ -1,12 +1,12 @@
 package main
 
-import "C"
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/ow0sh/gotest/coingecko"
 	"github.com/pkg/errors"
-	"net/http"
 )
 
 type handler struct {
@@ -15,7 +15,7 @@ type handler struct {
 	quotes  map[string]struct{}
 }
 
-func newHandler(coinCli *coingecko.Client, bases map[string]string, quotes map[string]struct{}) handler {
+func NewHandler(coinCli *coingecko.Client, bases map[string]string, quotes map[string]struct{}) handler {
 	return handler{
 		coinCli: coinCli,
 		bases:   bases,
@@ -30,8 +30,10 @@ func (h *handler) convert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: make error handling
-	price := h.coinCli.GetPrice(req.base, req.quote)
+	price, err := h.coinCli.GetPrice(req.base, req.quote)
+	if err != nil {
+		errors.Wrap(err, "failed to get price")
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(price)
 }
@@ -41,7 +43,7 @@ type request struct {
 	quote string
 }
 
-func (h handler) newRequest(r *http.Request) (*request, error) {
+func (h *handler) newRequest(r *http.Request) (*request, error) {
 	base := chi.URLParam(r, "base")
 	quote := chi.URLParam(r, "quote")
 

@@ -2,8 +2,11 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/pkg/errors"
 )
 
 type TypeAppConfig struct {
@@ -15,25 +18,35 @@ type TypeCacheConfig struct {
 	CleanupInterval   int `json:"cleanupInterval"`
 }
 
+type TypePSQLConfig struct {
+	Dsn      string `json:"dsn"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Port     int    `json:"port"`
+	Host     string `json:"host"`
+	Dbname   string `json:"dbname"`
+}
+
 type TypeConfig struct {
 	App   TypeAppConfig   `json:"app"`
 	Cache TypeCacheConfig `json:"cache"`
+	PSQL  TypePSQLConfig  `json:"psql"`
 }
 
-var Config TypeConfig
-
-func InitConfig() {
+func InitConfig(log *logrus.Logger) TypeConfig {
 	configFilename := "default.json"
 
 	configFile, err := ioutil.ReadFile("./config/" + configFilename)
 	if err != nil {
-		fmt.Println(err)
+		errors.Wrap(err, "failed to read config file")
 	}
 
-	err = json.Unmarshal(configFile, &Config)
+	var config TypeConfig
+	err = json.Unmarshal(configFile, &config)
 	if err != nil {
-		fmt.Println(err)
+		errors.Wrap(err, "failed to unmarshal json")
 	}
 
-	fmt.Println("Config initialized")
+	log.Info("Config initialized")
+	return config
 }

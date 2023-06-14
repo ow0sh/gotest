@@ -1,6 +1,6 @@
 package main
 
-func mapToSet(inter interface{}) map[string]struct{} {
+func MapToSet(inter interface{}) map[string]struct{} {
 	var result = make(map[string]struct{})
 	switch val := inter.(type) {
 	case []string:

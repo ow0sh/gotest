@@ -16,13 +16,11 @@ func Caching(c *cache.Cache) func(http.Handler) http.Handler {
 
 			if value, ok := c.Get(fmt.Sprintf(base + "-" + quote)); ok {
 				if byteSlice, ok := value.([]byte); ok {
-					fmt.Println("taken from cache")
 					w.Header().Set("Content-Type", "application/json")
 					w.Write(byteSlice)
 					return
 				}
 			}
-			fmt.Println("middlware")
 			next.ServeHTTP(w, r)
 		}
 
