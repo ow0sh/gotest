@@ -49,7 +49,10 @@ func main() {
 		r.Get("/", handler.convert)
 	})
 
-	PSQLconn.InsertInfo(bases, MapToSet(quotes))
+	params := BQ{base: []string{"bitcoin", "ethereum", "solana", "binancecoin"},
+		quote: []string{"usd", "usd", "usd", "usd"}}
+	go UpdateDB(log, PSQLconn, coinCli, params)
+
 	log.Info("Server started on port: " + config.App.Port)
 	if err := http.ListenAndServe(config.App.Port, r); err != nil {
 		if !errors.Is(err, http.ErrServerClosed) {
