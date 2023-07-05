@@ -1,0 +1,10 @@
+{
+  "db": {
+    "url": "postgres://ow0sh:8989@localhost:5432/postgres?sslmode=disable",
+    "driver": "postgres"
+  },
+  "cache": {
+    "defaultExpiration": 5,
+    "cleanupInterval": 10
+  }
+}

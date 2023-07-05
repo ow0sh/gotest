@@ -22,6 +22,25 @@ func NewClient(cli *http.Client) *Client {
 	return &Client{httpCli: cli}
 }
 
+func (cli *Client) GetCoinList() ([]Coin, error) {
+	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/coins/list", nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create request")
+	}
+	resp, err := cli.httpCli.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to do request")
+	}
+	defer resp.Body.Close()
+
+	var tmpCoinlist []Coin
+	if err = json.NewDecoder(resp.Body).Decode(&tmpCoinlist); err != nil {
+		return nil, errors.Wrap(err, "failed to decode response")
+	}
+
+	return tmpCoinlist, nil
+}
+
 func (cli *Client) GetCoins() (map[string]string, error) {
 	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/coins/list", nil)
 	if err != nil {

@@ -2,51 +2,38 @@ package config
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
+	"github.com/jmoiron/sqlx"
+	gocache "github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
-
-	"github.com/pkg/errors"
 )
 
-type TypeAppConfig struct {
-	Port string `json:"PORT"`
+type Config interface {
+	DB() *sqlx.DB
+	Log() *logrus.Logger
+	C() *gocache.Cache
 }
 
-type TypeCacheConfig struct {
-	DefaultExpiration int `json:"defaultExpiration"`
-	CleanupInterval   int `json:"cleanupInterval"`
+type config struct {
+	db
+	logger
+	c
 }
 
-type TypePSQLConfig struct {
-	Dsn      string `json:"dsn"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Port     int    `json:"port"`
-	Host     string `json:"host"`
-	Dbname   string `json:"dbname"`
-}
-
-type TypeConfig struct {
-	App   TypeAppConfig   `json:"app"`
-	Cache TypeCacheConfig `json:"cache"`
-	PSQL  TypePSQLConfig  `json:"psql"`
-}
-
-func InitConfig(log *logrus.Logger) TypeConfig {
-	configFilename := "default.json"
-
-	configFile, err := ioutil.ReadFile("./config/" + configFilename)
+func NewConfig(cfgPath string) (Config, error) {
+	file, err := os.Open(cfgPath)
 	if err != nil {
-		errors.Wrap(err, "failed to read config file")
+		return nil, err
+	}
+	cfg := config{}
+	if err = json.NewDecoder(file).Decode(&cfg); err != nil {
+		return nil, err
 	}
 
-	var config TypeConfig
-	err = json.Unmarshal(configFile, &config)
-	if err != nil {
-		errors.Wrap(err, "failed to unmarshal json")
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 
-	log.Info("Config initialized")
-	return config
+	return &cfg, nil
 }

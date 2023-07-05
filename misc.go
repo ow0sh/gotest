@@ -1,19 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
 	"github.com/ow0sh/gotest/coingecko"
-	"github.com/ow0sh/gotest/postgres"
-	"github.com/pkg/errors"
+	"github.com/ow0sh/gotest/models"
+	"github.com/ow0sh/gotest/usecases"
 	"github.com/sirupsen/logrus"
 )
-
-type BQ struct {
-	base  []string
-	quote []string
-}
 
 func MapToSet(inter interface{}) map[string]struct{} {
 	var result = make(map[string]struct{})
@@ -33,18 +29,15 @@ func MapToSet(inter interface{}) map[string]struct{} {
 	return result
 }
 
-func UpdateDB(log *logrus.Logger, conn *postgres.PSQLConn, cli *coingecko.Client, bq BQ) error {
+func UpdateDB(log *logrus.Logger, pricesUse *usecases.PricesUseCase, cli *coingecko.Client, bq models.BQ, ctx context.Context) {
 	for {
-		for i := range bq.base {
-			jsonRate, err := cli.GetPrice(bq.base[i], bq.quote[i])
+		for i := range bq.Base {
+			jsonRate, err := cli.GetPrice(bq.Base[i], bq.Quote[i])
 			if err != nil {
 				log.Error(err, "failed to get rate")
-				return errors.Wrap(err, "failed to get rate")
 			}
 			var data map[string]map[string]float64
 			if err := json.Unmarshal(jsonRate, &data); err != nil {
-				log.Error(err, "failed to unmarshal jsonprice")
-				return errors.Wrap(err, "failed to unmarshal jsonprice")
 			}
 			var rate float64
 			for _, quote := range data {
@@ -53,18 +46,21 @@ func UpdateDB(log *logrus.Logger, conn *postgres.PSQLConn, cli *coingecko.Client
 				}
 			}
 
-			if conn.Exist(bq.base[i]) {
-				err = conn.UpdateInfo(log, bq.base[i], rate)
+			test, err := pricesUse.UpdatePrices(ctx, bq.Base[i], rate)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			if len(test) == 0 {
+				_, err = pricesUse.CreatePrices(ctx, models.Price{Base: bq.Base[i], Quote: bq.Quote[i], Rate: rate})
 				if err != nil {
-					log.Error("failed to update info")
-					return errors.Wrap(err, "failed to update info")
+					log.Error(err)
+					return
+				} else {
+					log.Info("Pairs created and updated successfully")
 				}
 			} else {
-				err = conn.InsertInfo(log, bq.base[i], bq.quote[i], rate)
-				if err != nil {
-					log.Error("failed to updateDB")
-					return errors.Wrap(err, "failed to insert info")
-				}
+				log.Info("Pairs updated successfully")
 			}
 		}
 		time.Sleep(5 * time.Minute)
