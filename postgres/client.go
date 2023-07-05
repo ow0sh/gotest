@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/ow0sh/gotest/config"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type Row struct {
@@ -41,28 +42,56 @@ func (conn *PSQLConn) CloseConn() error {
 	return nil
 }
 
-func (conn *PSQLConn) InsertInfo(bases map[string]string, quotes map[string]struct{}) error {
+func (conn *PSQLConn) InsertInfo(log *logrus.Logger, base string, quote string, rate float64) error {
 	id := 0
-	for k := range bases {
-		for j := range quotes {
-			insertStr := `INSERT INTO prices VALUES ($1, $2, $3, $4)`
-			_, err := conn.conn.Exec(context.Background(), insertStr, id, k, j, 0)
-			if err != nil {
-				return errors.Wrap(err, "failed to insert info")
-			}
-			id += 1
-		}
+	selectStr := `SELECT id FROM prices ORDER BY id DESC LIMIT 1;`
+	err := conn.conn.QueryRow(context.Background(), selectStr).Scan(&id)
+	if err != nil {
+		log.Error("failed to get last id, creating new one")
 	}
+
+	id++
+	insertStr := "INSERT INTO prices VALUES ($1, $2, $3, $4);"
+	_, err = conn.conn.Exec(context.Background(), insertStr, id, base, quote, rate)
+	if err != nil {
+		log.Error("failed to insert into db")
+		return errors.Wrap(err, "failed to insert into db")
+	}
+
+	log.Info("Inserted into DB successfully")
 	return nil
 }
 
 func (conn *PSQLConn) SelectInfo() (*Row, error) {
 	var base, quote string
 	var rate int
-	err := conn.conn.QueryRow(context.Background(), `SELECT base, quote, rate FROM prices ORDER BY id DESC LIMIT 1;`).Scan(&base, &quote, &rate)
+	selectStr := `SELECT base, quote, rate FROM prices ORDER BY id DESC LIMIT 1;`
+	err := conn.conn.QueryRow(context.Background(), selectStr).Scan(&base, &quote, &rate)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to select info")
 	}
 
 	return &Row{base: base, quote: quote, rate: rate}, nil
+}
+
+func (conn *PSQLConn) UpdateInfo(log *logrus.Logger, base string, rate float64) error {
+	updateStr := "UPDATE prices SET rate = $1 WHERE base_asset = $2;"
+	_, err := conn.conn.Exec(context.Background(), updateStr, rate, base)
+	if err != nil {
+		log.Error("failed to update info")
+		return errors.Wrap(err, "failed to update info")
+	}
+	log.Info("Updated rates successfully")
+	return nil
+}
+
+func (conn *PSQLConn) Exist(base string) bool {
+	exitstStr := "SELECT id FROM prices WHERE base_asset = $1;"
+	var tmp int
+	conn.conn.QueryRow(context.Background(), exitstStr, base).Scan(&tmp)
+
+	if tmp == 0 {
+		return false
+	}
+	return true
 }
