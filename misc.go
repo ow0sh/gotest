@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/ow0sh/gotest/coingecko"
 	"github.com/ow0sh/gotest/models"
+	"github.com/ow0sh/gotest/pkg/coingecko"
 	"github.com/ow0sh/gotest/usecases"
 	"github.com/sirupsen/logrus"
 )
@@ -32,7 +32,7 @@ func MapToSet(inter interface{}) map[string]struct{} {
 func UpdateDB(log *logrus.Logger, pricesUse *usecases.PricesUseCase, cli *coingecko.Client, bq models.BQ, ctx context.Context) {
 	for {
 		for i := range bq.Base {
-			jsonRate, err := cli.GetPrice(bq.Base[i], bq.Quote[i])
+			jsonRate, err := cli.GetPrice(ctx, bq.Base[i], bq.Quote[i])
 			if err != nil {
 				log.Error(err, "failed to get rate")
 			}

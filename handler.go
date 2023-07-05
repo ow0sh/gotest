@@ -1,22 +1,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/ow0sh/gotest/coingecko"
+	"github.com/ow0sh/gotest/pkg/coingecko"
 	"github.com/pkg/errors"
 )
 
 type handler struct {
+	ctx     context.Context
 	coinCli *coingecko.Client
 	bases   map[string]string
 	quotes  map[string]struct{}
 }
 
-func NewHandler(coinCli *coingecko.Client, bases map[string]string, quotes map[string]struct{}) handler {
+func NewHandler(ctx context.Context, coinCli *coingecko.Client, bases map[string]string, quotes map[string]struct{}) handler {
 	return handler{
+		ctx:     ctx,
 		coinCli: coinCli,
 		bases:   bases,
 		quotes:  quotes,
@@ -24,43 +27,20 @@ func NewHandler(coinCli *coingecko.Client, bases map[string]string, quotes map[s
 }
 
 func (h *handler) convert(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("dasdsa")
 	req, err := h.newRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	price, err := h.coinCli.GetPrice(req.base, req.quote)
+	price, err := h.coinCli.GetPrice(h.ctx, req.base, req.quote)
 	if err != nil {
 		errors.Wrap(err, "failed to get price")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(price)
 }
-
-// func (h *handler) getCoinList(coinlist []coingecko.Coin) func(w http.ResponseWriter, r *http.Request) {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		tmp, err := json.Marshal(coinlist)
-// 		if err != nil {
-// 			http.Error(w, err.Error(), http.StatusBadRequest)
-// 			return
-// 		}
-// 		w.Header().Set("Content-Type", "application/json")
-// 		w.Write(tmp)
-// 	}
-// }
-
-// func (h *handler) getSupportedList(supportedList []string) func(w http.ResponseWriter, r *http.Request) {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		tmp, err := json.Marshal(supportedList)
-// 		if err != nil {
-// 			http.Error(w, err.Error(), http.StatusBadRequest)
-// 			return
-// 		}
-// 		w.Header().Set("Content-Type", "application/json")
-// 		w.Write(tmp)
-// 	}
-// }
 
 type request struct {
 	base  string

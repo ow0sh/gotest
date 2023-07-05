@@ -5,14 +5,14 @@ import (
 	"os"
 
 	"github.com/jmoiron/sqlx"
-	gocache "github.com/patrickmn/go-cache"
+	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 )
 
 type Config interface {
 	DB() *sqlx.DB
 	Log() *logrus.Logger
-	C() *gocache.Cache
+	C() *cache.Cache
 }
 
 type config struct {
