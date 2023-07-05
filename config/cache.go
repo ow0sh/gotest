@@ -17,7 +17,7 @@ type cParams struct {
 }
 
 func (c *c) C() *cache.Cache {
-	if c == nil {
+	if c.c == nil {
 		tmpc := cache.New(time.Duration(c.cParams.DefaultExpiration)*time.Minute,
 			time.Duration(c.cParams.CleanupInterval)*time.Minute)
 

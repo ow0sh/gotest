@@ -8,10 +8,10 @@ import (
 	"syscall"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/ow0sh/gotest/coingecko"
 	"github.com/ow0sh/gotest/config"
 	middlint "github.com/ow0sh/gotest/middleware"
 	"github.com/ow0sh/gotest/models"
+	"github.com/ow0sh/gotest/pkg/coingecko"
 	sqlx2 "github.com/ow0sh/gotest/repos/sqlx"
 	"github.com/ow0sh/gotest/usecases"
 	"github.com/pkg/errors"
@@ -37,19 +37,18 @@ func main() {
 		}
 	}()
 
-	httpCli := &http.Client{}
-	coinCli := coingecko.NewClient(httpCli)
+	coinCli := coingecko.NewClient()
 
-	bases, err := coinCli.GetCoins()
+	bases, err := coinCli.GetCoinList(ctx)
 	if err != nil {
 		panic(err)
 	}
-	quotes, err := coinCli.GetSupported()
+	quotes, err := coinCli.GetSupported(ctx)
 	if err != nil {
 		panic(err)
 	}
 
-	handler := NewHandler(coinCli, bases, MapToSet(quotes))
+	handler := NewHandler(ctx, coinCli, bases, MapToSet(quotes))
 
 	r := chi.NewRouter()
 	r.Use(middlint.Logger(log))
