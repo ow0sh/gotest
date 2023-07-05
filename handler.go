@@ -38,6 +38,30 @@ func (h *handler) convert(w http.ResponseWriter, r *http.Request) {
 	w.Write(price)
 }
 
+// func (h *handler) getCoinList(coinlist []coingecko.Coin) func(w http.ResponseWriter, r *http.Request) {
+// 	return func(w http.ResponseWriter, r *http.Request) {
+// 		tmp, err := json.Marshal(coinlist)
+// 		if err != nil {
+// 			http.Error(w, err.Error(), http.StatusBadRequest)
+// 			return
+// 		}
+// 		w.Header().Set("Content-Type", "application/json")
+// 		w.Write(tmp)
+// 	}
+// }
+
+// func (h *handler) getSupportedList(supportedList []string) func(w http.ResponseWriter, r *http.Request) {
+// 	return func(w http.ResponseWriter, r *http.Request) {
+// 		tmp, err := json.Marshal(supportedList)
+// 		if err != nil {
+// 			http.Error(w, err.Error(), http.StatusBadRequest)
+// 			return
+// 		}
+// 		w.Header().Set("Content-Type", "application/json")
+// 		w.Write(tmp)
+// 	}
+// }
+
 type request struct {
 	base  string
 	quote string

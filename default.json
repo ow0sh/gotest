@@ -1,0 +1,18 @@
+{
+  "app": {
+    "PORT": ":3010"
+  },
+  "cache": {
+    "defaultExpiration": 5,
+    "cleanupInterval": 10
+  },
+  "psql": {
+    "dsn": "postgres",
+    "user": "ow0sh",
+    "password": "8989",
+    "port": 5432,
+    "host": "localhost",
+    "dbname": "postgres",
+    "driver": "pq"
+  }
+}

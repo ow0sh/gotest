@@ -1,32 +1,44 @@
 package main
 
 import (
+	"context"
 	"net/http"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/ow0sh/gotest/coingecko"
-	"github.com/ow0sh/gotest/postgres"
-
-	"github.com/pkg/errors"
-
-	"github.com/patrickmn/go-cache"
-
 	"github.com/ow0sh/gotest/config"
 	middlint "github.com/ow0sh/gotest/middleware"
-	"github.com/sirupsen/logrus"
+	"github.com/ow0sh/gotest/models"
+	sqlx2 "github.com/ow0sh/gotest/repos/sqlx"
+	"github.com/ow0sh/gotest/usecases"
+	"github.com/pkg/errors"
 )
 
-func main() {
-	log := logrus.New()
+const defaultConfigPath = "./config.json"
 
-	config := config.InitConfig(log)
+func main() {
+	cfg, err := config.NewConfig(defaultConfigPath)
+	if err != nil {
+		panic(err)
+	}
+
+	log := cfg.Log()
+	db := cfg.DB()
+	c := cfg.C()
+
+	ctx, cancel := ctxWithSig()
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error(err)
+			cancel()
+		}
+	}()
 
 	httpCli := &http.Client{}
 	coinCli := coingecko.NewClient(httpCli)
-
-	PSQLconn, _ := postgres.NewConn(config.PSQL)
-	defer PSQLconn.CloseConn()
 
 	bases, err := coinCli.GetCoins()
 	if err != nil {
@@ -39,24 +51,38 @@ func main() {
 
 	handler := NewHandler(coinCli, bases, MapToSet(quotes))
 
-	c := cache.New(time.Duration(config.Cache.DefaultExpiration)*time.Minute,
-		time.Duration(config.Cache.CleanupInterval)*time.Minute)
 	r := chi.NewRouter()
-
 	r.Use(middlint.Logger(log))
 	r.Route("/rate/{base}-{quote}", func(r chi.Router) {
 		r.Use(middlint.Caching(c))
 		r.Get("/", handler.convert)
 	})
 
-	params := BQ{base: []string{"bitcoin", "ethereum", "solana", "binancecoin"},
-		quote: []string{"usd", "usd", "usd", "usd"}}
-	go UpdateDB(log, PSQLconn, coinCli, params)
+	pricesUse := usecases.NewPricesUseCase(sqlx2.NewPricesRepo(db))
 
-	log.Info("Server started on port: " + config.App.Port)
-	if err := http.ListenAndServe(config.App.Port, r); err != nil {
+	params := models.BQ{Base: []string{"bitcoin", "ethereum", "solana", "binancecoin"},
+		Quote: []string{"usd", "usd", "usd", "usd"}}
+	go UpdateDB(log, pricesUse, coinCli, params, ctx)
+
+	log.Info("Server started on port: 3000")
+	if err := http.ListenAndServe(":3000", r); err != nil {
 		if !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}
+}
+
+func ctxWithSig() (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT)
+
+	go func() {
+		select {
+		case <-ch:
+			cancel()
+		}
+	}()
+
+	return ctx, cancel
 }
