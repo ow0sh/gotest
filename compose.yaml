@@ -1,0 +1,43 @@
+
+services:
+  server:
+    build:
+      context: .
+      target: final
+    volumes:
+      - ./config.json:/config.json
+    ports:
+      - 3000:3000
+    depends_on:
+      - db
+      - db-migrate
+  db:
+    image: postgres:15
+    restart: always
+    user: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_PASSWORD=8989
+    expose:
+      - 5432
+    healthcheck:
+      test: [ "CMD", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  db-migrate:
+    build: 
+      context: .
+      dockerfile: ./migrations.Dockerfile
+    environment:
+      - CONFIG_PATH=/config.json
+      - MIGRATIONS_PATH=./migrations
+    volumes:
+      - ./migrate.config.json:/config.json
+    depends_on:
+      - db
+    restart: on-failure
+volumes:
+  db-data:

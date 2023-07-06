@@ -1,0 +1,5 @@
+production:
+  dialect: postgres
+  datasource: host=db dbname=postgres user=postgres password=8989 sslmode=disable
+  dir: ./migrations
+  table: prices
