@@ -33,7 +33,7 @@ services:
       dockerfile: ./migrations.Dockerfile
     environment:
       - CONFIG_PATH=/config.json
-      - MIGRATIONS_PATH=./migrations
+      - MIGRATIONS_PATH=/go/src/github.com/ow0sh/gotest/migrations
     volumes:
       - ./migrate.config.json:/config.json
     depends_on:
